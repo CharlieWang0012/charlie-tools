@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>座標獵人</title>
+<style>
+  :root {
+    --bg: #121212;
+    --chalk: #f5f5f0;
+    --accent: #ff8c2b;
+    --grid: #3a3a3a;
+    --axis: #cfcfc9;
+    --miss: #6b6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--chalk);
+    font-family: "Comic Sans MS", "Chalkboard SE", "cwTeXKai", "STKaiti", "KaiTi", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 16px;
+  }
+  h1 {
+    margin: 8px 0 4px;
+    font-size: clamp(28px, 6vw, 44px);
+    letter-spacing: 4px;
+    color: var(--chalk);
+    text-shadow: 1px 1px 0 #000;
+  }
+  h1 .accent { color: var(--accent); }
+  .subtitle { margin: 0 0 14px; opacity: .7; font-size: 14px; }
+  .hud {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .stat {
+    border: 2px dashed var(--grid);
+    border-radius: 10px;
+    padding: 6px 14px;
+    min-width: 92px;
+    text-align: center;
+  }
+  .stat .label { font-size: 12px; opacity: .65; }
+  .stat .value { font-size: 24px; font-weight: bold; }
+  .stat .value.accent { color: var(--accent); }
+  .board-wrap { position: relative; width: 100%; max-width: 460px; }
+  svg { width: 100%; height: auto; display: block; }
+  .controls {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0 8px;
+    width: 100%;
+    max-width: 460px;
+  }
+  input[type="text"] {
+    flex: 1;
+    background: #1d1d1d;
+    border: 2px solid var(--grid);
+    border-radius: 8px;
+    color: var(--chalk);
+    font-size: 20px;
+    padding: 10px 12px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 18px;
+    font-size: 18px;
+    font-weight: bold;
+    background: var(--accent);
+    color: #1a1a1a;
+    transition: transform .05s;
+  }
+  button:active { transform: scale(.96); }
+  button.ghost {
+    background: transparent;
+    color: var(--chalk);
+    border: 2px solid var(--grid);
+  }
+  .msg {
+    min-height: 26px;
+    font-size: 18px;
+    margin: 4px 0;
+    text-align: center;
+  }
+  .msg.hit { color: var(--accent); }
+  .msg.miss { color: var(--miss); }
+  .found-list {
+    font-size: 13px;
+    opacity: .7;
+    max-width: 460px;
+    text-align: center;
+    word-spacing: 4px;
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.82);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    z-index: 10;
+  }
+  .overlay.show { display: flex; }
+  .overlay h2 { font-size: 40px; margin: 0 0 6px; }
+  .overlay .big-score {
+    font-size: 72px;
+    color: var(--accent);
+    font-weight: bold;
+    margin: 6px 0;
+  }
+  .overlay p { font-size: 18px; opacity: .85; margin: 4px 0 20px; }
+  footer { margin-top: 18px; font-size: 12px; opacity: .4; }
+</style>
+</head>
+<body>
+  <h1>座標<span class="accent">獵人</span></h1>
+  <p class="subtitle">輸入座標（例：<b>2,-3</b>）獵捕 10 個隱藏點！</p>
+
+  <div class="hud">
+    <div class="stat"><div class="label">得分</div><div class="value accent" id="score">0</div></div>
+    <div class="stat"><div class="label">剩餘時間</div><div class="value" id="time">60</div></div>
+    <div class="stat"><div class="label">剩餘目標</div><div class="value" id="left">10</div></div>
+  </div>
+
+  <div class="board-wrap">
+    <svg id="board" viewBox="0 0 440 440" aria-label="座標平面"></svg>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="guess" placeholder="輸入座標，例：2,-3" autocomplete="off" inputmode="text">
+    <button id="fireBtn">獵捕</button>
+  </div>
+  <div class="msg" id="msg">準備好了嗎？開始輸入座標！</div>
+  <div class="found-list" id="foundList"></div>
+
+  <button class="ghost" id="restartBtn" style="margin-top:14px;">↻ 重新開始</button>
+
+  <footer>charlie-tools · 座標獵人 · 純前端教學小工具</footer>
+
+  <div class="overlay" id="overlay">
+    <h2 id="overTitle">時間到！</h2>
+    <div class="big-score"><span id="finalScore">0</span> / 10</div>
+    <p id="overMsg"></p>
+    <button id="playAgain">再玩一次</button>
+  </div>
+
+<script>
+  const MIN = -5, MAX = 5, TOTAL = 10, TIME = 60;
+  const PAD = 30, UNIT = 38; // px(x)=PAD+(x+5)*UNIT ; viewBox 440
+
+  const svg = document.getElementById('board');
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const $ = id => document.getElementById(id);
+
+  let targets, found, score, timeLeft, timer, playing;
+
+  const px = x => PAD + (x - MIN) * UNIT;
+  const py = y => PAD + (MAX - y) * UNIT;
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function drawGrid() {
+    svg.innerHTML = '';
+    // grid lines
+    for (let i = MIN; i <= MAX; i++) {
+      svg.appendChild(el('line', {x1: px(i), y1: py(MIN), x2: px(i), y2: py(MAX), stroke: 'var(--grid)', 'stroke-width': 1}));
+      svg.appendChild(el('line', {x1: px(MIN), y1: py(i), x2: px(MAX), y2: py(i), stroke: 'var(--grid)', 'stroke-width': 1}));
+    }
+    // axes
+    svg.appendChild(el('line', {x1: px(MIN), y1: py(0), x2: px(MAX), y2: py(0), stroke: 'var(--axis)', 'stroke-width': 2}));
+    svg.appendChild(el('line', {x1: px(0), y1: py(MIN), x2: px(0), y2: py(MAX), stroke: 'var(--axis)', 'stroke-width': 2}));
+    // tick labels on x and y axis
+    for (let i = MIN; i <= MAX; i++) {
+      if (i === 0) continue;
+      const tx = el('text', {x: px(i), y: py(0) + 16, fill: 'var(--axis)', 'font-size': 11, 'text-anchor': 'middle'});
+      tx.textContent = i; svg.appendChild(tx);
+      const ty = el('text', {x: px(0) - 10, y: py(i) + 4, fill: 'var(--axis)', 'font-size': 11, 'text-anchor': 'end'});
+      ty.textContent = i; svg.appendChild(ty);
+    }
+    // origin & axis letters
+    const o = el('text', {x: px(0) - 10, y: py(0) + 16, fill: 'var(--axis)', 'font-size': 11, 'text-anchor': 'end'});
+    o.textContent = '0'; svg.appendChild(o);
+    const xl = el('text', {x: px(MAX) + 6, y: py(0) + 4, fill: 'var(--accent)', 'font-size': 14}); xl.textContent = 'x'; svg.appendChild(xl);
+    const yl = el('text', {x: px(0) + 6, y: py(MAX) - 6, fill: 'var(--accent)', 'font-size': 14}); yl.textContent = 'y'; svg.appendChild(yl);
+  }
+
+  function markHit(x, y) {
+    const c = el('circle', {cx: px(x), cy: py(y), r: 0, fill: 'var(--accent)', stroke: '#fff', 'stroke-width': 1.5});
+    svg.appendChild(c);
+    // pop animation
+    let r = 0;
+    const grow = () => { r += 1.6; c.setAttribute('r', Math.min(r, 9)); if (r < 9) requestAnimationFrame(grow); };
+    grow();
+    const t = el('text', {x: px(x), y: py(y) - 12, fill: 'var(--accent)', 'font-size': 11, 'text-anchor': 'middle'});
+    t.textContent = `(${x},${y})`; svg.appendChild(t);
+  }
+
+  function markMiss(x, y) {
+    const r = 5;
+    const a = el('line', {x1: px(x)-r, y1: py(y)-r, x2: px(x)+r, y2: py(y)+r, stroke: 'var(--miss)', 'stroke-width': 2});
+    const b = el('line', {x1: px(x)-r, y1: py(y)+r, x2: px(x)+r, y2: py(y)-r, stroke: 'var(--miss)', 'stroke-width': 2});
+    svg.appendChild(a); svg.appendChild(b);
+  }
+
+  function newGame() {
+    drawGrid();
+    targets = new Set();
+    while (targets.size < TOTAL) {
+      const x = Math.floor(Math.random() * (MAX - MIN + 1)) + MIN;
+      const y = Math.floor(Math.random() * (MAX - MIN + 1)) + MIN;
+      targets.add(x + ',' + y);
+    }
+    found = new Set();
+    const guessed = new Set();
+    window._guessed = guessed;
+    score = 0; timeLeft = TIME; playing = true;
+    $('score').textContent = '0';
+    $('time').textContent = TIME;
+    $('left').textContent = TOTAL;
+    $('foundList').textContent = '';
+    $('msg').textContent = '準備好了嗎？開始輸入座標！';
+    $('msg').className = 'msg';
+    $('overlay').classList.remove('show');
+    $('guess').value = '';
+    $('guess').focus();
+    clearInterval(timer);
+    timer = setInterval(tick, 1000);
+  }
+
+  function tick() {
+    timeLeft--;
+    $('time').textContent = timeLeft;
+    if (timeLeft <= 0) endGame(false);
+  }
+
+  function setMsg(text, cls) { const m = $('msg'); m.textContent = text; m.className = 'msg ' + (cls || ''); }
+
+  function fire() {
+    if (!playing) return;
+    const raw = $('guess').value.trim();
+    $('guess').value = '';
+    $('guess').focus();
+    const m = raw.match(/^\(?\s*(-?\d+)\s*[,\s]\s*(-?\d+)\s*\)?$/);
+    if (!m) { setMsg('格式不對！請輸入像「2,-3」這樣的座標', 'miss'); return; }
+    const x = parseInt(m[1], 10), y = parseInt(m[2], 10);
+    if (x < MIN || x > MAX || y < MIN || y > MAX) {
+      setMsg(`座標要在 ${MIN} 到 ${MAX} 之間喔`, 'miss'); return;
+    }
+    const key = x + ',' + y;
+    if (window._guessed.has(key)) { setMsg(`(${x},${y}) 你已經猜過了`, 'miss'); return; }
+    window._guessed.add(key);
+
+    if (targets.has(key)) {
+      found.add(key);
+      score++;
+      $('score').textContent = score;
+      $('left').textContent = TOTAL - found.size;
+      markHit(x, y);
+      $('foundList').textContent = '已命中： ' + [...found].map(k => '(' + k + ')').join('  ');
+      setMsg(`命中 (${x},${y})！ +1`, 'hit');
+      if (found.size === TOTAL) endGame(true);
+    } else {
+      markMiss(x, y);
+      setMsg(`(${x},${y}) 沒有目標，再試試！`, 'miss');
+    }
+  }
+
+  function endGame(cleared) {
+    playing = false;
+    clearInterval(timer);
+    $('finalScore').textContent = score;
+    $('overTitle').textContent = cleared ? '全部命中！🎯' : '時間到！';
+    let comment;
+    if (score === TOTAL) comment = cleared ? `神準！只剩 ${timeLeft} 秒` : '滿分！';
+    else if (score >= 7) comment = '很厲害，再接再厲！';
+    else if (score >= 4) comment = '不錯喔，多練幾次會更穩。';
+    else comment = '別灰心，再來一局！';
+    $('overMsg').textContent = comment;
+    // reveal remaining targets faintly
+    targets.forEach(k => { if (!found.has(k)) { const [x,y] = k.split(',').map(Number); const c = el('circle', {cx: px(x), cy: py(y), r: 5, fill: 'none', stroke: 'var(--miss)', 'stroke-width': 1.5, 'stroke-dasharray': '2 2'}); svg.appendChild(c); } });
+    $('overlay').classList.add('show');
+  }
+
+  $('fireBtn').addEventListener('click', fire);
+  $('guess').addEventListener('keydown', e => { if (e.key === 'Enter') fire(); });
+  $('restartBtn').addEventListener('click', newGame);
+  $('playAgain').addEventListener('click', newGame);
+
+  newGame();
+</script>
+</body>
+</html>

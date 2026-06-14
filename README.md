@@ -6,7 +6,8 @@
 
 ## 工具清單
 
-- （尚無，待加）
+- **座標獵人** — 直角座標練習遊戲。在 11×11 格點上輸入座標獵捕 10 個隱藏點，60 秒挑戰。
+  [`tools/coordinate-hunter/`](tools/coordinate-hunter/)
 
 ---
 
