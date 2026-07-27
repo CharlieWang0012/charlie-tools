@@ -13,6 +13,13 @@
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 
+# 讀 native 命令（git 等）的 stdout 時，PS 5.1 預設用系統 ANSI codepage（繁中機器是 Big5），
+# 會讓中文 commit message 變亂碼。兩台機器的 codepage 設定不一定相同，所以明確固定成 UTF-8。
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {}
+
 $HomeDir  = $env:USERPROFILE
 $DriveRoot = 'G:\我的雲端硬碟'
 $OutDir   = Join-Path $DriveRoot 'machine-state'
