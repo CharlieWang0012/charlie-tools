@@ -49,5 +49,7 @@ Claude 會讀 `machine-state\` 底下所有快照，列出「A 有 B 沒有」�
 - **PS 5.1 的字串內插 `$( )` 裡不能再用同型引號**（`"...$(... "..." ...)"` 會 parse error）。要嘛先算成變數，要嘛用 `Fmt-Code` 這種 helper。
 - **`gh auth status` 的參數要 splatting**（`@('auth','status')`），整串當一個參數傳會失敗，然後誤報「未登入」。而且它的輸出走 stderr，要 `2>&1`。
 - **`gh` 的 token 存在 Windows keyring，不在 `hosts.yml`**；`hosts.yml` 也不在 `~/.config/gh`，而在 `%APPDATA%\GitHub CLI\`。判斷登入一律跑 `gh auth status`，別看檔案。
+- **`pip list --format=freeze` 的套件名不統一**：有的給連字號（`auto-editor`），有的給底線（`firebase_admin`）。比對前一律把 `_` 正規化成 `-`，否則明明裝好了卻報「未安裝」。
+- **firebase-tools 的憑證位置會隨版本變動**：新版在 `~/.config/configstore/firebase-tools.json`，舊版在 `%APPDATA%\configstore\`。腳本兩個都找。這也是為什麼登入態要另外跑 `firebase login:list` 判斷，不能只看檔案。
 - **`.claude\projects\<slug>\memory` 是 junction 指向 `memory-shared`**，`Get-ChildItem -Recurse` 不會跟進去，會誤報 0 個。以 `memory-shared` 的數字為準。
 - 刻意**不做 `git fetch`**、不打網路，純本地狀態，所以跑完只要十幾秒。

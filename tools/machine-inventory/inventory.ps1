@@ -294,13 +294,15 @@ if (Test-Cmd 'python') {
         $freeze = & python -m pip list --format=freeze 2>$null
         foreach ($line in $freeze) {
             $parts = $line -split '=='
-            if ($parts.Count -ge 2) { $installed[$parts[0].ToLower()] = $parts[1] }
+            # pip 對某些套件輸出底線名（firebase_admin）、對某些輸出連字號（auto-editor），
+            # 一律正規化成連字號再比對，否則會誤報「未安裝」
+            if ($parts.Count -ge 2) { $installed[$parts[0].ToLower().Replace('_','-')] = $parts[1] }
         }
     } catch {}
     Add-Line '| 套件 | 狀態 | 版本 |'
     Add-Line '|---|---|---|'
     foreach ($w in $watch) {
-        $k = $w.ToLower()
+        $k = $w.ToLower().Replace('_','-')
         if ($installed.ContainsKey($k)) {
             Add-Line "| ``$w`` | ✅ | $($installed[$k]) |"
         } else {
@@ -317,7 +319,14 @@ if (Test-Cmd 'python') {
 Add-H '🔑 憑證／登入狀態（只記有無，不含內容）'
 Add-Line '| 憑證 | 狀態 | 路徑 | 備註 |'
 Add-Line '|---|---|---|---|'
-Add-Line (Test-PathState (Join-Path $env:APPDATA 'configstore\firebase-tools.json') 'Firebase CLI 憑證檔')
+# firebase-tools 的憑證位置會隨版本變動：新版在 ~/.config/configstore，舊版在 %APPDATA%\configstore
+$fbCredPaths = @(
+    (Join-Path $HomeDir '.config\configstore\firebase-tools.json'),
+    (Join-Path $env:APPDATA 'configstore\firebase-tools.json')
+)
+$fbCred = $fbCredPaths[0]
+foreach ($fp in $fbCredPaths) { if (Test-Path $fp) { $fbCred = $fp; break } }
+Add-Line (Test-PathState $fbCred 'Firebase CLI 憑證檔')
 Add-Line (Test-PathState (Join-Path $env:APPDATA 'gcloud\application_default_credentials.json') 'gcloud ADC')
 Add-Line (Test-PathState (Join-Path $env:APPDATA 'GitHub CLI\hosts.yml') 'GitHub CLI 設定檔')
 Add-Line (Test-PathState (Join-Path $HomeDir '.config\chezmoi\chezmoi.toml') 'chezmoi 金鑰檔')
