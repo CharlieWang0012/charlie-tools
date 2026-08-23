@@ -202,6 +202,8 @@ HTML_TMPL = """<!doctype html>
            line-height:1;padding:14px 4px 5px;border-radius:0 0 10px 10px;text-align:center}
   .grid button[aria-current="true"]{border-color:var(--orange)}
   footer{color:var(--muted);font-size:12px;text-align:center;margin-top:34px;line-height:1.8}
+  footer .home{display:inline-block;margin-bottom:6px;color:var(--orange-2);text-decoration:none;
+               border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-size:13px}
   .toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);background:#fff;
          color:#0f2557;padding:10px 18px;border-radius:999px;font-size:14px;font-weight:600;
          opacity:0;pointer-events:none;transition:.25s;box-shadow:0 8px 24px rgba(0,0,0,.3)}
@@ -232,6 +234,7 @@ HTML_TMPL = """<!doctype html>
   <div class="grid" id="grid"></div>
 
   <footer>
+    <a class="home" href="https://charliewang0012.github.io/">← 連結中心</a><br>
     更新時間 __UPDATED__<br>
     只保留最近 __COUNT__ 張，更早的原始檔在本機「我的雲端硬碟／生日賀卡」。
   </footer>

@@ -1,0 +1,72 @@
+{
+  "title": "千竹 連結中心",
+  "subtitle": "所有線上工具與頁面，一個網址進得去",
+  "sections": [
+    {
+      "id": "public",
+      "name": "對外・可以直接給客戶看",
+      "items": [
+        {
+          "name": "教官略懂保險",
+          "desc": "保險觀念部落格，長文與懶人包都在這",
+          "url": "https://2026-insu-blog.vercel.app",
+          "icon": "📝"
+        },
+        {
+          "name": "海外旅遊綜合險比較",
+          "desc": "旅平險＋不便險逐項比較表",
+          "url": "https://charliewang0012.github.io/insurance-compare/",
+          "icon": "🧳"
+        },
+        {
+          "name": "安達旅平險 三步驟判斷法",
+          "desc": "互動網頁版，三步驟帶客戶選方案",
+          "url": "https://chubb-vercel.vercel.app",
+          "icon": "🧭"
+        },
+        {
+          "name": "颱風季出國，四件事",
+          "desc": "颱風季出國宣導頁，適合轉發",
+          "url": "https://typhoon-page.vercel.app",
+          "icon": "🌀"
+        }
+      ]
+    },
+    {
+      "id": "private",
+      "name": "自用・工作與工具",
+      "items": [
+        {
+          "name": "千竹 生日賀卡",
+          "desc": "每天 09:00 自動更新，最近 30 張可下載",
+          "url": "https://charliewang0012.github.io/line-image-host/",
+          "icon": "🎂"
+        },
+        {
+          "name": "台灣人壽商品銷售地圖",
+          "desc": "手繪版商品地圖，銷售前先看一眼",
+          "url": "https://vercel-deploy-five-ivory.vercel.app/",
+          "icon": "🗺️"
+        },
+        {
+          "name": "中華郵政甄試 選擇題練習",
+          "desc": "程式設計科刷題，筆試 2026/7/19",
+          "url": "https://charliewang0012.github.io/post-exam-quiz/",
+          "icon": "📮"
+        },
+        {
+          "name": "文字雲產生器",
+          "desc": "貼文字就產文字雲，做教材圖用",
+          "url": "https://charliewang0012.github.io/teacher-wordcloud/",
+          "icon": "☁️"
+        },
+        {
+          "name": "5萬以下 14吋筆電比較",
+          "desc": "五款輕薄筆電比較表",
+          "url": "https://laptop-compare-smoky.vercel.app",
+          "icon": "💻"
+        }
+      ]
+    }
+  ]
+}
