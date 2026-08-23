@@ -1,6 +1,19 @@
 # birthday-card — 每日星座生日賀卡 + 教官公仔素材
 
-每日星座生日賀卡系統的固定資產與工具。賀卡規格見《每日星座生日賀卡 V2.0》。
+每日星座生日賀卡系統的固定資產與工具。賀卡規格見 `規格書_V2.1.md`（含 2026-08-23 起的網頁發佈）。
+
+產線：`birthday-card` skill 一條龍跑（抓運勢 → 生賀卡 → 開檔 → **發佈網頁**），排程 `ClaudeBirthdayCard` 每天 09:00 自動執行。
+
+## 生日賀卡網頁 `publish_bday.py`
+
+https://charliewang0012.github.io/line-image-host/ — 最近 30 張賀卡的手機版畫廊，可直接下載圖片。
+
+```bash
+python publish_bday.py            # 發佈最近 30 張並 push
+python publish_bday.py --no-push  # 只產檔不 push
+```
+
+轉 JPG（1024/360）→ 同步進 `line-image-host` repo 的 `bday/` → 產 `index.html` → push。只留最近 30 張，原始 PNG 永遠在 GDrive `生日賀卡/`。
 
 ## 教官公仔（chizu = 千竹）
 
