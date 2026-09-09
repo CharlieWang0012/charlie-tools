@@ -193,6 +193,12 @@ def main():
     print(f"共 {len(cards)} 張，最新 {fmt_day(cards[0]['day'])} {cards[0]['zodiac']}")
 
     build_assets(cards)
+    # GitHub Pages 預設會跑 Jekyll，把 .md 當來源檔轉成 HTML、不提供原始檔，
+    # 文字卡的 .md 會 404。.nojekyll 關掉這個處理，檔案就原樣送出。
+    nojekyll = REPO / ".nojekyll"
+    if not nojekyll.exists():
+        nojekyll.write_text("", encoding="utf-8")
+        print("  [ok] 補上 .nojekyll（否則 .md 會被 Jekyll 吃掉）")
     (REPO / "index.html").write_text(render_html(cards), encoding="utf-8")
     print("  [ok] index.html 已產生")
     git_sync(push=not args.no_push)
