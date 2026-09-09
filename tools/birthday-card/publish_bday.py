@@ -42,16 +42,11 @@ THUMB_Q = 80
 # 生日賀卡_處女座_0823_20260823_091455.png / 生日賀卡_獅子_0815_郭學長_20260815_095657.png
 NAME_RE = re.compile(r"^生日賀卡_([^_]+?)座?_.*?(\d{8})_(\d{6})\.png$")
 
-# 星座符號，文字卡用
-ZODIAC_SIGN = {
-    "牡羊座": "♈", "金牛座": "♉", "雙子座": "♊", "巨蟹座": "♋",
-    "獅子座": "♌", "處女座": "♍", "天秤座": "♎", "天蠍座": "♏",
-    "射手座": "♐", "摩羯座": "♑", "水瓶座": "♒", "雙魚座": "♓",
-}
-
-
 def read_md(path):
-    """讀 md 文字卡的 frontmatter；格式不對就回 None（呼叫端會印警告跳過）。"""
+    """讀 md 文字卡：回傳 frontmatter 欄位，外加 body（frontmatter 底下的原文）。
+
+    格式不對就回 None（呼叫端會印警告跳過）。
+    """
     text = path.read_text(encoding="utf-8")
     if not text.lstrip().startswith("---"):
         return None
@@ -62,47 +57,8 @@ def read_md(path):
     if not isinstance(meta, dict) or not meta.get("date") or not meta.get("zodiac"):
         return None
     meta["day"] = str(meta["date"]).replace("-", "")
+    meta["body"] = parts[2].strip()
     return meta
-
-
-def stars(n):
-    n = max(0, min(5, int(n)))
-    return "★" * n + "☆" * (5 - n)
-
-
-def render_text_card(meta):
-    """把 md 的內容排成一張 HTML 文字卡（沒有生圖時用這個頂替）。"""
-    e = html.escape
-    rows = []
-    for item in meta.get("fortune") or []:
-        name, score, note = (list(item) + ["", 0, ""])[:3]
-        rows.append(
-            f'<div class="mc-row"><span>{e(str(name))}</span>'
-            f'<b>{stars(score)}</b><i>{e(str(note))}</i></div>'
-        )
-    for k, v in (meta.get("luck") or {}).items():
-        rows.append(
-            f'<div class="mc-row"><span>{e(str(k))}</span><i>{e(str(v))}</i></div>'
-        )
-    tip = meta.get("tip")
-    tip_html = f'<div class="mc-tip">{e(str(tip))}</div>' if tip else ""
-    sign = ZODIAC_SIGN.get(meta["zodiac"], "✦")
-    return (
-        '<div class="mdcard">'
-        '<div class="mc-title">生日快樂</div>'
-        '<div class="mc-ribbon">千竹 祝福您</div>'
-        f'<div class="mc-date">{e(fmt_day(meta["day"]))}</div>'
-        f'<div class="mc-sign">{sign}</div>'
-        f'<div class="mc-z">{e(meta["zodiac"])}</div>'
-        f'<div class="mc-line">{e(str(meta.get("zodiac_line", "")))}</div>'
-        '<div class="mc-panel"><div class="mc-ph">今日好運報</div>'
-        + "".join(rows)
-        + "</div>"
-        + tip_html
-        + f'<div class="mc-bless">{e(str(meta.get("blessing_1", "平安順心")))}</div>'
-        + f'<div class="mc-bless">{e(str(meta.get("blessing_2", "")))}</div>'
-        + "</div>"
-    )
 
 
 def collect_cards(keep):
@@ -186,8 +142,8 @@ def render_html(cards):
                 f'z:"{html.escape(c["zodiac"])}",'
                 f'kind:"{c["kind"]}",')
         if c["kind"] == "md":
-            body = json.dumps(render_text_card(c["meta"]), ensure_ascii=False)
-            items.append(head + f'md:"bday/{c["md"]}",html:{body}' + "}")
+            body = json.dumps(c["meta"]["body"], ensure_ascii=False)
+            items.append(head + f'md:"bday/{c["md"]}",text:{body}' + "}")
         else:
             items.append(head + f'full:"bday/{c["full"]}",thumb:"bday/{c["thumb"]}"' + "}")
     data = "[\n" + ",\n".join(items) + "\n]"
@@ -270,33 +226,14 @@ HTML_TMPL = """<!doctype html>
         box-shadow:0 12px 32px rgba(0,0,0,.35)}
   .hero img{width:100%;height:auto;display:block;border-radius:12px;background:#0b1c44}
   .hero img[hidden]{display:none}
-  /* 文字卡：當天沒生圖時頂替，用 CSS 排版不花生圖費用 */
+  /* 文字卡：當天沒生圖時頂替，直接顯示 md 原文 */
   .mdbox[hidden]{display:none}
-  .mdcard{border-radius:12px;padding:22px 18px 24px;text-align:center;
-          background:linear-gradient(165deg,#12306e 0%,#0d2050 100%);
-          border:1px solid rgba(255,179,92,.28)}
-  .mc-title{font-size:34px;font-weight:900;letter-spacing:4px;color:#fff;
-            text-shadow:0 2px 0 rgba(255,140,26,.55)}
-  .mc-ribbon{display:inline-block;margin:10px 0 4px;background:var(--orange);color:#2a1400;
-             font-weight:700;font-size:14px;letter-spacing:2px;padding:5px 20px;border-radius:6px}
-  .mc-date{font-size:19px;font-weight:700;color:var(--orange-2);letter-spacing:1px;margin-top:8px}
-  .mc-sign{font-size:40px;line-height:1.2;margin-top:10px;color:#dfe8ff}
-  .mc-z{font-size:16px;font-weight:700;letter-spacing:2px}
-  .mc-line{font-size:13px;color:var(--muted);margin-top:4px;letter-spacing:1px}
-  .mc-panel{margin:18px auto 0;max-width:430px;text-align:left;background:rgba(255,255,255,.07);
-            border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-  .mc-ph{text-align:center;font-weight:700;letter-spacing:3px;color:var(--orange-2);
-         font-size:15px;margin-bottom:10px}
-  .mc-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;
-          border-top:1px solid rgba(255,255,255,.07);font-size:13px;line-height:1.5}
-  .mc-row:first-of-type{border-top:0}
-  .mc-row span{flex:0 0 62px;color:var(--muted)}
-  .mc-row b{color:var(--orange);letter-spacing:1px;font-size:12px}
-  .mc-row i{font-style:normal;flex:1;min-width:0}
-  .mc-tip{margin:14px auto 0;max-width:430px;font-size:13px;color:var(--muted);line-height:1.7}
-  .mc-bless{margin-top:10px;font-size:24px;font-weight:800;letter-spacing:6px;color:#ffd79a;
-            text-shadow:0 1px 0 rgba(0,0,0,.4)}
-  .mc-bless+.mc-bless{margin-top:2px}
+  .mdbox{margin:0;border-radius:12px;padding:18px 16px;background:#0b1c44;
+         border:1px solid var(--line);color:var(--ink);
+         font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,
+                     "Noto Sans TC","PingFang TC","Microsoft JhengHei",monospace;
+         font-size:13px;line-height:1.9;white-space:pre-wrap;word-break:break-word;
+         overflow-x:auto;-webkit-overflow-scrolling:touch}
   .grid .tmd{display:flex;flex-direction:column;align-items:center;justify-content:center;
              aspect-ratio:1;background:#12306e;border:1px solid rgba(255,179,92,.3);
              border-radius:10px;font-size:22px;line-height:1}
@@ -341,7 +278,7 @@ HTML_TMPL = """<!doctype html>
 
   <div class="hero">
     <img id="hero" src="" alt="生日賀卡">
-    <div class="mdbox" id="mdbox" hidden></div>
+    <pre class="mdbox" id="mdbox" hidden></pre>
     <div class="meta">
       <span class="date" id="d"></span>
       <span class="zodiac" id="z"></span>
@@ -383,7 +320,7 @@ function show(i){
   hero.hidden = isMd;
   mdbox.hidden = !isMd;
   if (isMd) {
-    mdbox.innerHTML = c.html;
+    mdbox.textContent = c.text;
   } else {
     hero.src = c.full;
     hero.alt = c.day + ' ' + c.z + ' 生日賀卡';
@@ -395,7 +332,7 @@ function show(i){
   dl.textContent = isMd ? '下載文字檔' : '下載圖片';
   cp.textContent = isMd ? '複製檔案網址' : '複製圖片網址';
   hint.innerHTML = isMd
-    ? '這天沒有生圖，改用文字卡。要整張圖片轉傳的話，補上生圖額度後重跑就會換回來。'
+    ? '這天沒有生圖，直接顯示 md 原文。要整張圖片轉傳的話，補上生圖額度後重跑就會換回來。'
     : '手機若沒跳下載，直接<b>長按圖片</b>→「加入照片」也可以存檔。';
   [...grid.children].forEach((b, k) => b.setAttribute('aria-current', k === i ? 'true' : 'false'));
 }
