@@ -46,7 +46,9 @@ def render(data):
     for sec in data["sections"]:
         cards = []
         for it in sec["items"]:
-            domain = it["url"].split("//", 1)[-1].split("/", 1)[0]
+            # 顯示網域＋路徑：同網域下的不同頁（如 github.io/line-image-host/）
+            # 只印網域會長得跟連結中心自己一模一樣，看起來像連錯地方。
+            domain = it["url"].split("//", 1)[-1].rstrip("/")
             cards.append(
                 '<a class="card" href="{url}" target="_blank" rel="noopener">'
                 '<span class="ico">{icon}</span>'

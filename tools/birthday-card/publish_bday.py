@@ -13,12 +13,14 @@
 """
 import argparse
 import html
+import json
 import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from PIL import Image
 
 try:
@@ -40,9 +42,74 @@ THUMB_Q = 80
 # 生日賀卡_處女座_0823_20260823_091455.png / 生日賀卡_獅子_0815_郭學長_20260815_095657.png
 NAME_RE = re.compile(r"^生日賀卡_([^_]+?)座?_.*?(\d{8})_(\d{6})\.png$")
 
+# 星座符號，文字卡用
+ZODIAC_SIGN = {
+    "牡羊座": "♈", "金牛座": "♉", "雙子座": "♊", "巨蟹座": "♋",
+    "獅子座": "♌", "處女座": "♍", "天秤座": "♎", "天蠍座": "♏",
+    "射手座": "♐", "摩羯座": "♑", "水瓶座": "♒", "雙魚座": "♓",
+}
+
+
+def read_md(path):
+    """讀 md 文字卡的 frontmatter；格式不對就回 None（呼叫端會印警告跳過）。"""
+    text = path.read_text(encoding="utf-8")
+    if not text.lstrip().startswith("---"):
+        return None
+    parts = text.split("---", 2)
+    if len(parts) < 3:
+        return None
+    meta = yaml.safe_load(parts[1])
+    if not isinstance(meta, dict) or not meta.get("date") or not meta.get("zodiac"):
+        return None
+    meta["day"] = str(meta["date"]).replace("-", "")
+    return meta
+
+
+def stars(n):
+    n = max(0, min(5, int(n)))
+    return "★" * n + "☆" * (5 - n)
+
+
+def render_text_card(meta):
+    """把 md 的內容排成一張 HTML 文字卡（沒有生圖時用這個頂替）。"""
+    e = html.escape
+    rows = []
+    for item in meta.get("fortune") or []:
+        name, score, note = (list(item) + ["", 0, ""])[:3]
+        rows.append(
+            f'<div class="mc-row"><span>{e(str(name))}</span>'
+            f'<b>{stars(score)}</b><i>{e(str(note))}</i></div>'
+        )
+    for k, v in (meta.get("luck") or {}).items():
+        rows.append(
+            f'<div class="mc-row"><span>{e(str(k))}</span><i>{e(str(v))}</i></div>'
+        )
+    tip = meta.get("tip")
+    tip_html = f'<div class="mc-tip">{e(str(tip))}</div>' if tip else ""
+    sign = ZODIAC_SIGN.get(meta["zodiac"], "✦")
+    return (
+        '<div class="mdcard">'
+        '<div class="mc-title">生日快樂</div>'
+        '<div class="mc-ribbon">千竹 祝福您</div>'
+        f'<div class="mc-date">{e(fmt_day(meta["day"]))}</div>'
+        f'<div class="mc-sign">{sign}</div>'
+        f'<div class="mc-z">{e(meta["zodiac"])}</div>'
+        f'<div class="mc-line">{e(str(meta.get("zodiac_line", "")))}</div>'
+        '<div class="mc-panel"><div class="mc-ph">今日好運報</div>'
+        + "".join(rows)
+        + "</div>"
+        + tip_html
+        + f'<div class="mc-bless">{e(str(meta.get("blessing_1", "平安順心")))}</div>'
+        + f'<div class="mc-bless">{e(str(meta.get("blessing_2", "")))}</div>'
+        + "</div>"
+    )
+
 
 def collect_cards(keep):
-    """掃來源資料夾，每天只留最新一張，回傳最近 keep 張（新→舊）。"""
+    """掃來源資料夾，每天只留一張，回傳最近 keep 張（新→舊）。
+
+    同一天若圖片卡與 md 文字卡都在，**圖片卡優先**（文字卡只是沒生圖時的頂替）。
+    """
     by_day = {}
     for p in SRC_DIR.glob("生日賀卡_*.png"):
         m = NAME_RE.match(p.name)
@@ -52,7 +119,20 @@ def collect_cards(keep):
         zodiac, day, hhmmss = m.group(1) + "座", m.group(2), m.group(3)
         cur = by_day.get(day)
         if cur is None or hhmmss > cur["time"]:
-            by_day[day] = {"day": day, "time": hhmmss, "zodiac": zodiac, "path": p}
+            by_day[day] = {"kind": "img", "day": day, "time": hhmmss,
+                           "zodiac": zodiac, "path": p}
+
+    for p in sorted(SRC_DIR.glob("生日賀卡_*.md")):
+        meta = read_md(p)
+        if meta is None:
+            print(f"  [!] md frontmatter 讀不到 date/zodiac，跳過：{p.name}")
+            continue
+        day = meta["day"]
+        if by_day.get(day, {}).get("kind") == "img":
+            continue  # 當天已有圖片卡，文字卡不蓋掉它
+        by_day[day] = {"kind": "md", "day": day, "time": "000000",
+                       "zodiac": meta["zodiac"], "path": p, "meta": meta}
+
     cards = sorted(by_day.values(), key=lambda c: c["day"], reverse=True)
     return cards[:keep]
 
@@ -62,6 +142,13 @@ def build_assets(cards):
     BDAY_DIR.mkdir(parents=True, exist_ok=True)
     wanted = set()
     for c in cards:
+        if c["kind"] == "md":
+            dst = BDAY_DIR / f"bday-{c['day']}.md"
+            wanted.add(dst.name)
+            c["md"] = dst.name
+            dst.write_text(c["path"].read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"  [md ] {c['day']} {c['zodiac']} -> {dst.name}（文字卡，未生圖）")
+            continue
         full = BDAY_DIR / f"bday-{c['day']}.jpg"
         thumb = BDAY_DIR / f"thumb-{c['day']}.jpg"
         wanted.update({full.name, thumb.name})
@@ -78,10 +165,11 @@ def build_assets(cards):
             small.thumbnail((THUMB_SIZE, THUMB_SIZE), Image.LANCZOS)
             small.save(thumb, "JPEG", quality=THUMB_Q, optimize=True)
         print(f"  [img] {c['day']} {c['zodiac']} -> {full.name} ({full.stat().st_size // 1024} KB)")
-    for old in BDAY_DIR.glob("*.jpg"):
-        if old.name not in wanted:
-            old.unlink()
-            print(f"  [del] 輪替移除 {old.name}")
+    for pattern in ("*.jpg", "*.md"):
+        for old in BDAY_DIR.glob(pattern):
+            if old.name not in wanted:
+                old.unlink()
+                print(f"  [del] 輪替移除 {old.name}")
     return wanted
 
 
@@ -92,15 +180,16 @@ def fmt_day(day):
 def render_html(cards):
     items = []
     for c in cards:
-        items.append(
-            "{"
-            f'day:"{fmt_day(c["day"])}",'
-            f'raw:"{c["day"]}",'
-            f'z:"{html.escape(c["zodiac"])}",'
-            f'full:"bday/{c["full"]}",'
-            f'thumb:"bday/{c["thumb"]}"'
-            "}"
-        )
+        head = ("{"
+                f'day:"{fmt_day(c["day"])}",'
+                f'raw:"{c["day"]}",'
+                f'z:"{html.escape(c["zodiac"])}",'
+                f'kind:"{c["kind"]}",')
+        if c["kind"] == "md":
+            body = json.dumps(render_text_card(c["meta"]), ensure_ascii=False)
+            items.append(head + f'md:"bday/{c["md"]}",html:{body}' + "}")
+        else:
+            items.append(head + f'full:"bday/{c["full"]}",thumb:"bday/{c["thumb"]}"' + "}")
     data = "[\n" + ",\n".join(items) + "\n]"
     updated = datetime.now().strftime("%Y-%m-%d %H:%M")
     return (HTML_TMPL
@@ -180,6 +269,39 @@ HTML_TMPL = """<!doctype html>
   .hero{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;
         box-shadow:0 12px 32px rgba(0,0,0,.35)}
   .hero img{width:100%;height:auto;display:block;border-radius:12px;background:#0b1c44}
+  .hero img[hidden]{display:none}
+  /* 文字卡：當天沒生圖時頂替，用 CSS 排版不花生圖費用 */
+  .mdbox[hidden]{display:none}
+  .mdcard{border-radius:12px;padding:22px 18px 24px;text-align:center;
+          background:linear-gradient(165deg,#12306e 0%,#0d2050 100%);
+          border:1px solid rgba(255,179,92,.28)}
+  .mc-title{font-size:34px;font-weight:900;letter-spacing:4px;color:#fff;
+            text-shadow:0 2px 0 rgba(255,140,26,.55)}
+  .mc-ribbon{display:inline-block;margin:10px 0 4px;background:var(--orange);color:#2a1400;
+             font-weight:700;font-size:14px;letter-spacing:2px;padding:5px 20px;border-radius:6px}
+  .mc-date{font-size:19px;font-weight:700;color:var(--orange-2);letter-spacing:1px;margin-top:8px}
+  .mc-sign{font-size:40px;line-height:1.2;margin-top:10px;color:#dfe8ff}
+  .mc-z{font-size:16px;font-weight:700;letter-spacing:2px}
+  .mc-line{font-size:13px;color:var(--muted);margin-top:4px;letter-spacing:1px}
+  .mc-panel{margin:18px auto 0;max-width:430px;text-align:left;background:rgba(255,255,255,.07);
+            border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .mc-ph{text-align:center;font-weight:700;letter-spacing:3px;color:var(--orange-2);
+         font-size:15px;margin-bottom:10px}
+  .mc-row{display:flex;gap:8px;align-items:baseline;padding:5px 0;
+          border-top:1px solid rgba(255,255,255,.07);font-size:13px;line-height:1.5}
+  .mc-row:first-of-type{border-top:0}
+  .mc-row span{flex:0 0 62px;color:var(--muted)}
+  .mc-row b{color:var(--orange);letter-spacing:1px;font-size:12px}
+  .mc-row i{font-style:normal;flex:1;min-width:0}
+  .mc-tip{margin:14px auto 0;max-width:430px;font-size:13px;color:var(--muted);line-height:1.7}
+  .mc-bless{margin-top:10px;font-size:24px;font-weight:800;letter-spacing:6px;color:#ffd79a;
+            text-shadow:0 1px 0 rgba(0,0,0,.4)}
+  .mc-bless+.mc-bless{margin-top:2px}
+  .grid .tmd{display:flex;flex-direction:column;align-items:center;justify-content:center;
+             aspect-ratio:1;background:#12306e;border:1px solid rgba(255,179,92,.3);
+             border-radius:10px;font-size:22px;line-height:1}
+  .grid .tmd em{font-style:normal;font-size:11px;color:var(--orange-2);margin-top:5px;
+                letter-spacing:1px}
   .meta{display:flex;align-items:baseline;gap:10px;margin:12px 2px 10px;flex-wrap:wrap}
   .date{font-size:22px;font-weight:700}
   .zodiac{background:rgba(255,140,26,.16);color:var(--orange-2);border:1px solid rgba(255,140,26,.4);
@@ -219,6 +341,7 @@ HTML_TMPL = """<!doctype html>
 
   <div class="hero">
     <img id="hero" src="" alt="生日賀卡">
+    <div class="mdbox" id="mdbox" hidden></div>
     <div class="meta">
       <span class="date" id="d"></span>
       <span class="zodiac" id="z"></span>
@@ -227,7 +350,7 @@ HTML_TMPL = """<!doctype html>
       <a class="btn btn-main" id="dl" href="" download>下載圖片</a>
       <button class="btn btn-ghost" id="cp">複製圖片網址</button>
     </div>
-    <p class="hint">手機若沒跳下載，直接<b>長按圖片</b>→「加入照片」也可以存檔。</p>
+    <p class="hint" id="hint"></p>
   </div>
 
   <h2>最近的賀卡</h2>
@@ -246,31 +369,49 @@ const CARDS = __CARDS__;
 const SITE = "__SITE__";
 const hero = document.getElementById('hero'), dEl = document.getElementById('d'),
       zEl = document.getElementById('z'), dl = document.getElementById('dl'),
-      grid = document.getElementById('grid'), toast = document.getElementById('toast');
+      grid = document.getElementById('grid'), toast = document.getElementById('toast'),
+      mdbox = document.getElementById('mdbox'), cp = document.getElementById('cp'),
+      hint = document.getElementById('hint');
 let cur = 0;
+
+const fileOf = c => c.kind === 'md' ? c.md : c.full;
 
 function show(i){
   cur = i;
   const c = CARDS[i];
-  hero.src = c.full;
-  hero.alt = c.day + ' ' + c.z + ' 生日賀卡';
+  const isMd = c.kind === 'md';
+  hero.hidden = isMd;
+  mdbox.hidden = !isMd;
+  if (isMd) {
+    mdbox.innerHTML = c.html;
+  } else {
+    hero.src = c.full;
+    hero.alt = c.day + ' ' + c.z + ' 生日賀卡';
+  }
   dEl.textContent = c.day;
   zEl.textContent = c.z;
-  dl.href = c.full;
-  dl.setAttribute('download', 'birthday-' + c.raw + '.jpg');
+  dl.href = fileOf(c);
+  dl.setAttribute('download', 'birthday-' + c.raw + (isMd ? '.md' : '.jpg'));
+  dl.textContent = isMd ? '下載文字檔' : '下載圖片';
+  cp.textContent = isMd ? '複製檔案網址' : '複製圖片網址';
+  hint.innerHTML = isMd
+    ? '這天沒有生圖，改用文字卡。要整張圖片轉傳的話，補上生圖額度後重跑就會換回來。'
+    : '手機若沒跳下載，直接<b>長按圖片</b>→「加入照片」也可以存檔。';
   [...grid.children].forEach((b, k) => b.setAttribute('aria-current', k === i ? 'true' : 'false'));
 }
 
 CARDS.forEach((c, i) => {
   const b = document.createElement('button');
-  b.innerHTML = '<img loading="lazy" src="' + c.thumb + '" alt="' + c.day + '"><span class="d">' +
-                c.day.slice(5) + '</span>';
+  const face = c.kind === 'md'
+    ? '<span class="tmd">🎂<em>' + c.z + '</em></span>'
+    : '<img loading="lazy" src="' + c.thumb + '" alt="' + c.day + '">';
+  b.innerHTML = face + '<span class="d">' + c.day.slice(5) + '</span>';
   b.onclick = () => { show(i); window.scrollTo({top:0, behavior:'smooth'}); };
   grid.appendChild(b);
 });
 
-document.getElementById('cp').onclick = async () => {
-  const url = SITE + CARDS[cur].full;
+cp.onclick = async () => {
+  const url = SITE + fileOf(CARDS[cur]);
   try { await navigator.clipboard.writeText(url); }
   catch (e) {
     const t = document.createElement('textarea');
