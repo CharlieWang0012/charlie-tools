@@ -53,6 +53,12 @@
           "desc": "57 地點／68 網點，可依省份篩選、搜尋機場",
           "url": "https://deren-lounges.vercel.app",
           "icon": "🛋️"
+        },
+        {
+          "name": "路西愛吃LINE",
+          "desc": "LINE 群組相片與文件自動歸檔後台，Google 登入限白名單",
+          "url": "https://frontend-two-hazel-35.vercel.app",
+          "icon": "🐱"
         }
       ]
     },
