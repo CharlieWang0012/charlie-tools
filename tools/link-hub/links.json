@@ -37,6 +37,12 @@
           "icon": "📮"
         },
         {
+          "name": "投資型保單證照 選擇題練習",
+          "desc": "投資型保險商品業務員刷題，考試 2026/12/13；題庫加密，需密碼解鎖",
+          "url": "https://charliewang0012.github.io/ilp-quiz/",
+          "icon": "📈"
+        },
+        {
           "name": "文字雲產生器",
           "desc": "貼文字就產文字雲，做教材圖用",
           "url": "https://charliewang0012.github.io/teacher-wordcloud/",
